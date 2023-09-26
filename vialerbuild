@@ -2,19 +2,21 @@
 set -e
 
 AVIALABLE_ARCHS=(
-    "armv7"
-    "armv7s"
+    # "armv7"
+    # "armv7s"
     "arm64"
-    "i386"
+    # "i386"
     "x86_64"
 )
-export BASE_DIR=`pwd -P`
-export MIN_IOS_VERSION="10.0"
-export IOS_SDK_VERSION="13.2"
+export BASE_DIR=$(pwd -P)
+export MIN_IOS_VERSION="11.0"
+export IOS_SDK_VERSION="16.4"
 export AVIALABLE_ARCHS
 export USE_ARCHS=()
 
 export DOWNLOAD_PJSIP_SRC=true
+export DOWNLOAD_OPUS_SRC=true
+export DOWNLOAD_SSL_SRC=true
 export CLEAN_PJSIP_SRC=true
 export SSL_SUPPORT=false
 export OPUS_SUPPORT=false
@@ -25,7 +27,7 @@ export HAS_BITCODE=true
 export HAS_IPV6=false
 export SHOW_HELP=false
 
-export PJSIP_VERSION="2.10"
+export PJSIP_VERSION="2.13.1"
 export PJSIP_BASE_URL="http://svn.pjsip.org/repos/pjproject"
 export PJSIP_DIR="$BASE_DIR/pjsip"
 export PJSIP_FINAL_LIB_DIR="$BASE_DIR/lib"
@@ -49,13 +51,13 @@ export ZRTP_BUILD_DIR="$BUILD_DIR/zrtp"
 export OPUS_BUILD_DIR="$BUILD_DIR/opus"
 export H264_BUILD_DIR="$BUILD_DIR/h264"
 
-export XCODE_SIMULATOR_DEV_PATH="`xcrun -sdk iphonesimulator --show-sdk-platform-path`/Developer"
+export XCODE_SIMULATOR_DEV_PATH="$(xcrun -sdk iphonesimulator --show-sdk-platform-path)/Developer"
 
 set -e
 
 for i in "$@"; do
     case $i in
-        -a=* | --arch=*)
+    -a=* | --arch=*)
         ARCHS="${i#*=}"
         while IFS=',' read -ra ARCH; do
             for i in "${ARCH[@]}"; do
@@ -63,68 +65,75 @@ for i in "$@"; do
                     USE_ARCHS+=("$i")
                 fi
             done
-        done <<< $ARCHS
+        done <<<$ARCHS
         shift
         ;;
-        --no-download-pjsip-src)
+    --no-download-pjsip-src)
         DOWNLOAD_PJSIP_SRC=false
         shift
         ;;
-        --no-clean-pjsip-src)
+    --no-download-opus-src)
+        DOWNLOAD_OPUS_SRC=false
+        shift
+        ;;
+    --no-download-ssl-src)
+        DOWNLOAD_SSL_SRC=false
+        shift
+        ;;
+    --no-clean-pjsip-src)
         CLEAN_PJSIP_SRC=false
         shift
         ;;
-        --pjsip-version=*)
+    --pjsip-version=*)
         PJSIP_VERSION="${i#=}"
         shift
         ;;
-        --extra-config-site-options=*)
+    --extra-config-site-options=*)
         CONFIG_SITE_OPTIONS="${i#*=}"
         shift
         ;;
-        -ssl | --ssl | ssl)
+    -ssl | --ssl | ssl)
         SSL_SUPPORT=true
         shift
         ;;
-        -opus | --opus | opus)
+    -opus | --opus | opus)
         OPUS_SUPPORT=true
         shift
         ;;
-        -h264 | --h264 | h264)
+    -h264 | --h264 | h264)
         H264_SUPPORT=true
         shift
         ;;
-        --independent-webrtc)
+    --independent-webrtc)
         INDEPENDENT_WEBRTC=true
         shift
         ;;
-        --no-bitcode)
+    --no-bitcode)
         HAS_BITCODE=false
         shift
         ;;
-        --enable-zrtp)
+    --enable-zrtp)
         ENABLE_ZRTP=true
         shift
         ;;
-        --enable-ipv6)
+    --enable-ipv6)
         HAS_IPV6=true
         shift
         ;;
-        -h | --help | help)
+    -h | --help | help)
         SHOW_HELP=true
         shift
         ;;
-        -v | --version | version)
-        echo "Vialer PJSIP Compile script version: 2.0.0"
+    -v | --version | version)
+        echo "Vialer PJSIP Compile script version: 3.0.1"
         exit 1
         shift
         ;;
-        *)
-        ;;
+    *) ;;
     esac
 done
 
-function show_help () {
+function show_help() {
     echo "Usage: $0 [option...]" >&2
     echo "Default the script will compile for all architectures. But without ssl, opus and video support."
     echo
@@ -168,7 +177,7 @@ function spinner() {
     local pid=$1
     local delay=0.5
     local spinstr='|/-\'
-    echo "$pid" > "/tmp/.spinner.pid"
+    echo "$pid" >"/tmp/.spinner.pid"
     while [ "$(ps a | awk '{print $1}' | grep $pid)" ]; do
         local temp=${spinstr#?}
         printf " [%c]  " "$spinstr"
@@ -179,7 +188,7 @@ function spinner() {
     printf "    \b\b\b\b"
 }
 
-function build_h264 () {
+function build_h264() {
     if [ $H264_SUPPORT = false ]; then
         return
     fi
@@ -188,7 +197,7 @@ function build_h264 () {
 
     rm -rf $H264_BUILD_DIR
 
-    h264_version="2.0.0";
+    h264_version="2.0.0"
     h264_url="https://github.com/cisco/openh264/archive/v${h264_version}.tar.gz"
     h264_target_path="$H264_BUILD_DIR/src"
 
@@ -197,7 +206,7 @@ function build_h264 () {
     cd $h264_target_path
 
     echo "Downloading h264-${h264_version}.tar.gz"
-	curl -LO $h264_url
+    curl -LO $h264_url
     echo "Using h264-${h264_version}.tar.gz"
 
     tar zxf "v${h264_version}.tar.gz" --strip 1
@@ -217,14 +226,14 @@ function build_h264 () {
 
         mkdir -p "${h264_prefix}/logs"
 
-        pushd . > /dev/null
+        pushd . >/dev/null
 
         cd $h264_target_path
 
         if [ -d "${h264_prefix}" ]; then
             rm -rf ${h264_prefix}
         fi
-        mkdir -p  ${h264_prefix}
+        mkdir -p ${h264_prefix}
 
         echo "Building h264 for ${arch}"
 
@@ -237,13 +246,13 @@ function build_h264 () {
         rm ${h264_makefile}.deleteme
 
         echo "--- Run make file for ${arch}"
-        make OS=ios ARCH=${arch} SDK_MIN=${MIN_IOS_VERSION} v=No >> "${h264_log}"  || exit
-        make OS=ios ARCH=${arch} SDK_MIN=${MIN_IOS_VERSION} v=No install >> "${h264_log}" || exit
-        make OS=ios ARCH=${arch} SDK_MIN=${MIN_IOS_VERSION} v=No clean >> "${h264_log}" || exit
+        make OS=ios ARCH=${arch} SDK_MIN=${MIN_IOS_VERSION} v=No >>"${h264_log}" || exit
+        make OS=ios ARCH=${arch} SDK_MIN=${MIN_IOS_VERSION} v=No install >>"${h264_log}" || exit
+        make OS=ios ARCH=${arch} SDK_MIN=${MIN_IOS_VERSION} v=No clean >>"${h264_log}" || exit
 
         mv "${h264_makefile_bak}" "${h264_makefile}"
 
-        popd > /dev/null
+        popd >/dev/null
 
         h264_lipo_args="${h264_lipo_args} -arch ${arch} ${H264_BUILD_DIR}/build/${arch}/lib/libopenh264.a"
     done
@@ -261,8 +270,12 @@ function build_h264 () {
     echo "Done compiling openh264"
 }
 
-function build_ssl () {
+function build_ssl() {
     if [ $SSL_SUPPORT = false ]; then
+        return
+    fi
+
+     if [ $DOWNLOAD_SSL_SRC = false ]; then
         return
     fi
 
@@ -270,7 +283,7 @@ function build_ssl () {
     rm -rf $SSL_BUILD_DIR
     mkdir -p $SSL_BUILD_DIR
 
-    pushd . > /dev/null
+    pushd . >/dev/null
     cd $SSL_BUILD_DIR
 
     # Download OpenSSL repo.
@@ -278,11 +291,15 @@ function build_ssl () {
     curl -LO $ssl_url
     tar zxf "master.tar.gz" --strip 1
     rm "master.tar.gz"
-    ./build-libssl.sh --version=1.1.1d --archs="${USE_ARCHS[*]// /\s}" || exit
+    ./build-libssl.sh --version=1.1.1d --archs="${USE_ARCHS[*]// /\s}" --targets="ios-sim-cross-x86_64 ios-cross-arm64" || exit
+    cd lib
+    lipo libcrypto-iOS-Sim.a libcrypto-iOS.a -create -output libcrypto.a
+    lipo libssl-iOS.a libssl-iOS-Sim.a -create -output libssl.a
+    cd ..
     mv include include2
     mkdir -p include
     mv include2/openssl include/openssl
-    popd > /dev/null
+    popd >/dev/null
     echo "Using SSL..."
 
     if [ $ENABLE_ZRTP = true ]; then
@@ -290,38 +307,40 @@ function build_ssl () {
     fi
 }
 
-function build_zrtp () {
+function build_zrtp() {
     echo "Use ZRTP"
-	rm -rf $ZRTP_BUILD_DIR
-	rm -rf $PJSIP_SRC_DIR/third_party/ZRTP4PJ
+    rm -rf $ZRTP_BUILD_DIR
+    rm -rf $PJSIP_SRC_DIR/third_party/ZRTP4PJ
     mkdir -p $ZRTP_BUILD_DIR
-    pushd . > /dev/null
+    pushd . >/dev/null
     cd $ZRTP_BUILD_DIR
     git clone https://github.com/wernerd/ZRTP4PJ
     cd ZRTP4PJ/zsrtp
-	sh getzrtp.sh || exit
-	cd $ZRTP_BUILD_DIR
-	mv ZRTP4PJ $PJSIP_SRC_DIR/third_party
-	cd $PJSIP_SRC_DIR/third_party/ZRTP4PJ/build/zsrtp
-	sed -i '' -e 's#'~/devhome/pjproject.git'#'"$PJSIP_SRC_DIR"'#' Makefile
-	cd ../../zsrtp
-	sed -i '' -e 's/#define THIS_FILE "transport_zrtp.c"/#define THIS_FILE "transport_zrtp.c"\
+    sh getzrtp.sh || exit
+    cd $ZRTP_BUILD_DIR
+    mv ZRTP4PJ $PJSIP_SRC_DIR/third_party
+    cd $PJSIP_SRC_DIR/third_party/ZRTP4PJ/build/zsrtp
+    sed -i '' -e 's#'~/devhome/pjproject.git'#'"$PJSIP_SRC_DIR"'#' Makefile
+    cd ../../zsrtp
+    sed -i '' -e 's/#define THIS_FILE "transport_zrtp.c"/#define THIS_FILE "transport_zrtp.c"\
 #define DYNAMIC_TIMER 1/' transport_zrtp.c
 }
 
-function build_opus () {
+function build_opus() {
     if [ $OPUS_SUPPORT = false ]; then
         return
     fi
 
-    rm -rf $OPUS_BUILD_DIR
+    if [ $DOWNLOAD_OPUS_SRC = true ]; then
+        rm -rf $OPUS_BUILD_DIR
+    fi
 
     opus_version="1.3.1"
     opus_opt_cflags="-Ofast -flto -g"
     opus_opt_ldflags="-flto"
     opus_opt_config_args=""
 
-    xcode_dev_path=`xcode-select -print-path`
+    xcode_dev_path=$(xcode-select -print-path)
 
     opus_repo_dir=$OPUS_BUILD_DIR
     opus_output_dir="${opus_repo_dir}/dependencies"
@@ -336,23 +355,25 @@ function build_opus () {
 
     cd $opus_src_dir
 
-    echo "Downloading opus-${opus_version}.tar.gz"
-	curl -LO http://downloads.xiph.org/releases/opus/opus-${opus_version}.tar.gz
-    echo "Using opus-${opus_version}.tar.gz"
+    if [ $DOWNLOAD_OPUS_SRC = true ]; then
+        echo "Downloading opus-${opus_version}.tar.gz"
+        curl -LO http://downloads.xiph.org/releases/opus/opus-${opus_version}.tar.gz
+        echo "Using opus-${opus_version}.tar.gz"
 
-    tar zxf opus-${opus_version}.tar.gz
+        tar zxf opus-${opus_version}.tar.gz
+    fi
+
     cd "${opus_src_dir}/opus-${opus_version}"
 
     ccache=""
 
-    for arch in ${USE_ARCHS[@]}
-    do
+    for arch in ${USE_ARCHS[@]}; do
         echo "-- Opus: Compiling $arch"
         opus_extra_cflags="-arch $arch"
         if [ "$arch" == "i386" ] || [ "$arch" == "x86_64" ]; then
             os_platform="iPhoneSimulator"
             opus_extra_flags="--with-pic"
-            opus_extra_config="--host=$arch-apple-darwin"
+            opus_extra_config="--host=x86_64-apple-darwin"
         else
             os_platform="iPhoneOS"
             opus_extra_config="--host=arm-apple-darwin"
@@ -360,13 +381,30 @@ function build_opus () {
 
         mkdir -p "${opus_inter_dir}/${os_platform}${IOS_SDK_VERSION}-${arch}.sdk"
 
-        ./configure \
-            --enable-float-approx --disable-shared --enable-static \
-            --with-pic --disable-extra-programs --disable-doc ${opus_extra_config} \
-            --prefix="${opus_inter_dir}/${os_platform}${IOS_SDK_VERSION}-${arch}.sdk" \
-            ${opus_extra_config} \
-            LDFLAGS="$LDFLAGS ${opus_opt_ldflags} -fPIE -miphoneos-version-min=${MIN_IOS_VERSION} -L${opus_output_dir}/lib" \
-            CFLAGS="$CFLAGS ${opus_extra_cflags} ${opus_opt_cflags} -fPIE -miphoneos-version-min=${MIN_IOS_VERSION} -I${opus_output_dir}/include -isysroot ${xcode_dev_path}/Platforms/${os_platform}.platform/Developer/SDKs/${os_platform}.sdk" || exit
+        if [ "$arch" == "i386" ] || [ "$arch" == "x86_64" ]; then
+            echo "-- Opus: opus_extra_config $opus_extra_config"
+            echo "-- Opus: opus_inter_dir $opus_inter_dir"
+            echo "-- Opus: opus_inter_dir $opus_inter_dir"
+            echo "-- Opus: os_platform $os_platform"
+            echo "-- Opus: IOS_SDK_VERSION $IOS_SDK_VERSION"
+            echo "-- Opus: opus_opt_ldflags $opus_opt_ldflags"
+            echo "-- Opus: opus_extra_cflags $opus_extra_cflags"
+            echo "-- Opus: MIN_IOS_VERSION $MIN_IOS_VERSION"
+            echo "-- Opus: prefix "${opus_inter_dir}/${os_platform}${IOS_SDK_VERSION}-${arch}.sdk""
+            echo "-- Opus: LDFLAGS "${opus_opt_ldflags} -fPIE -miphoneos-version-min=${MIN_IOS_VERSION} -L${opus_output_dir}/lib""
+            echo "-- Opus: CFLAGS "${opus_extra_cflags} ${opus_opt_cflags} -fPIE -miphoneos-version-min=${MIN_IOS_VERSION} -I${opus_output_dir}/include""
+            ./configure \
+                --enable-float-approx --disable-shared --enable-static \
+                --with-pic --disable-extra-programs --disable-doc ${opus_extra_config} \
+                --prefix="${opus_inter_dir}/${os_platform}${IOS_SDK_VERSION}-${arch}.sdk" || exit
+        else
+            ./configure \
+                --enable-float-approx --disable-shared --enable-static \
+                --with-pic --disable-extra-programs --disable-doc ${opus_extra_config} \
+                --prefix="${opus_inter_dir}/${os_platform}${IOS_SDK_VERSION}-${arch}.sdk" \
+                LDFLAGS="${opus_opt_ldflags} -fPIE -miphoneos-version-min=${MIN_IOS_VERSION} -L${opus_output_dir}/lib" \
+                CFLAGS="${opus_extra_cflags} ${opus_opt_cflags} -fPIE -miphoneos-version-min=${MIN_IOS_VERSION} -I${opus_output_dir}/include -isysroot ${xcode_dev_path}/Platforms/${os_platform}.platform/Developer/SDKs/${os_platform}.sdk" || exit
+        fi
 
         make -j4 || exit
 
@@ -423,7 +461,7 @@ function build_opus () {
     echo "Done copying files"
 }
 
-function download_pjsip () {
+function download_pjsip() {
     pjsip_url="https://github.com/pjsip/pjproject/archive/${PJSIP_VERSION}.tar.gz"
     pjsip_target_path="$PJSIP_DIR/src"
 
@@ -438,16 +476,16 @@ function download_pjsip () {
     tar zxf "${PJSIP_VERSION}.tar.gz" --strip 1
 }
 
-function clean_pjsip () {
+function clean_pjsip() {
     if [ $CLEAN_PJSIP_SRC = true ]; then
         echo "Clean PJSIP source: ${CLEAN_PJSIP_SRC}"
         echo "WARNING: About to clean directory: ${BASE_DIR}/pjsip"
         echo "Waiting 5 seconds for sanity check... CTRL-C to abort now"
-        sleep 1 && echo "4..." && \
-        sleep 1 && echo "3..." && \
-        sleep 1 && echo "2..." && \
-        sleep 1 && echo "1..." && \
-        sleep 1
+        sleep 1 && echo "4..." &&
+            sleep 1 && echo "3..." &&
+            sleep 1 && echo "2..." &&
+            sleep 1 && echo "1..." &&
+            sleep 1
 
         rm -rf $PJSIP_DIR
         rm -rf $PJSIP_FINAL_LIB_DIR
@@ -457,44 +495,44 @@ function clean_pjsip () {
     fi
 }
 
-function config_site () {
+function config_site() {
     echo "Creating config_site.h"
 
     if [ -f $PJSIP_CONFIG_SITE_H ]; then
         rm -rf $PJSIP_CONFIG_SITE_H
     fi
 
-    echo "#define PJ_CONFIG_IPHONE 1" >> $PJSIP_CONFIG_SITE_H
+    echo "#define PJ_CONFIG_IPHONE 1" >>$PJSIP_CONFIG_SITE_H
 
     if [ $INDEPENDENT_WEBRTC = true ]; then
-        echo "#define PJMEDIA_HAS_SRTP 0" >> $PJSIP_CONFIG_SITE_H
+        echo "#define PJMEDIA_HAS_SRTP 0" >>$PJSIP_CONFIG_SITE_H
     fi
 
     if [ $H264_SUPPORT = true ]; then
-        echo "#define PJMEDIA_HAS_VIDEO 1" >> $PJSIP_CONFIG_SITE_H
-        echo "#define PJMEDIA_HAS_OPENH264_CODEC 1" >> $PJSIP_CONFIG_SITE_H
-        echo "#define PJMEDIA_VIDEO_DEV_HAS_OPENGL 1" >> $PJSIP_CONFIG_SITE_H
-        echo "#define PJMEDIA_VIDEO_DEV_HAS_OPENGL_ES 1" >> $PJSIP_CONFIG_SITE_H
-        echo "#define PJMEDIA_VIDEO_DEV_HAS_IOS_OPENGL 1" >> $PJSIP_CONFIG_SITE_H
-        echo "#include <OpenGLES/ES3/glext.h>" >> $PJSIP_CONFIG_SITE_H
+        echo "#define PJMEDIA_HAS_VIDEO 1" >>$PJSIP_CONFIG_SITE_H
+        echo "#define PJMEDIA_HAS_OPENH264_CODEC 1" >>$PJSIP_CONFIG_SITE_H
+        echo "#define PJMEDIA_VIDEO_DEV_HAS_OPENGL 1" >>$PJSIP_CONFIG_SITE_H
+        echo "#define PJMEDIA_VIDEO_DEV_HAS_OPENGL_ES 1" >>$PJSIP_CONFIG_SITE_H
+        echo "#define PJMEDIA_VIDEO_DEV_HAS_IOS_OPENGL 1" >>$PJSIP_CONFIG_SITE_H
+        echo "#include <OpenGLES/ES3/glext.h>" >>$PJSIP_CONFIG_SITE_H
     fi
 
     if [ $HAS_IPV6 = true ]; then
-        echo " #define PJ_HAS_IPV6 1" >> $PJSIP_CONFIG_SITE_H
+        echo " #define PJ_HAS_IPV6 1" >>$PJSIP_CONFIG_SITE_H
     fi
 
     while IFS=',' read -ra CONFIG_SITE_OPTION; do
         for i in "${CONFIG_SITE_OPTION[@]}"; do
-            echo "#define $i" >> $PJSIP_CONFIG_SITE_H
+            echo "#define $i" >>$PJSIP_CONFIG_SITE_H
         done
-    done <<< $CONFIG_SITE_OPTIONS
+    done <<<$CONFIG_SITE_OPTIONS
 
-    echo "#include <pj/config_site_sample.h>" >> $PJSIP_CONFIG_SITE_H
+    echo "#include <pj/config_site_sample.h>" >>$PJSIP_CONFIG_SITE_H
     echo "Done creating new config_site.h"
     echo "============================="
 }
 
-function build_archs () {
+function build_archs() {
     echo "Building ABIs"
 
     for arch in "${USE_ARCHS[@]}"; do
@@ -507,40 +545,41 @@ function build_archs () {
     echo "============================="
 }
 
-function configure_armv7 () {
+function configure_armv7() {
     echo "Configure for armv7"
     export CFLAGS="-miphoneos-version-min=$MIN_IOS_VERSION"
     export LDFLAGS=
 }
 
-function configure_armv7s () {
+function configure_armv7s() {
     echo "Configure for armv7s"
     export CFLAGS="-miphoneos-version-min=$MIN_IOS_VERSION"
     export LDFLAGS=
 }
 
-function configure_arm64 () {
+function configure_arm64() {
     echo "Configure for arm64"
     export CFLAGS="-miphoneos-version-min=$MIN_IOS_VERSION"
     export LDFLAGS=
 }
 
-function configure_i386 () {
+function configure_i386() {
     echo "Configure for i386"
     export DEVPATH=$XCODE_SIMULATOR_DEV_PATH
     export CFLAGS="-O2 -m32 -mios-simulator-version-min=$MIN_IOS_VERSION"
-    export LDFLAGS="-O2 -m32 -mios-simulator-version-min=$MIN_IOS_VERSION -Wl,-no_compact_unwind"
+    export LDFLAGS="-O2 -m32 -mios-simulator-version-min=$MIN_IOS_VERSION -Wl"
+
 }
 
-function configure_x86_64 () {
+function configure_x86_64() {
     echo "Configure for x86_64"
     export DEVPATH=$XCODE_SIMULATOR_DEV_PATH
-    export CFLAGS="-O2 -m32 -mios-simulator-version-min=$MIN_IOS_VERSION"
-    export LDFLAGS="-O2 -m32 -mios-simulator-version-min=$MIN_IOS_VERSION -Wl,-no_compact_unwind"
+    export CFLAGS="-O2 -m64 -mios-simulator-version-min=$MIN_IOS_VERSION"
+    export LDFLAGS="-O2 -m64 -mios-simulator-version-min=$MIN_IOS_VERSION -Wl"
 }
 
-function _build () {
-    pushd . > /dev/null
+function _build() {
+    pushd . >/dev/null
     cd $PJSIP_SRC_DIR
 
     mkdir -p $PJSIP_LOGS_DIR
@@ -579,25 +618,25 @@ function _build () {
 
     cp $PJSIP_CONFIG_SITE_H "$BASE_DIR/pjsip/src/pjlib/include/pj"
 
-    ARCH="-arch $arch" $configure >> $arch_log 2>&1 || exit
+    ARCH="-arch $arch" $configure >>$arch_log 2>&1 || exit
 
-    make dep >> $arch_log 2>&1 &
+    make dep >>$arch_log 2>&1 &
     spinner $!
 
-    make clean >> $arch_log &
+    make clean >>$arch_log &
     spinner $!
 
-    make >> $arch_log 2>&1 &
+    make >>$arch_log 2>&1 &
     spinner $!
 
     if [ $SSL_SUPPORT = true ]; then
         if [ $ENABLE_ZRTP = true ]; then
             cd $PJSIP_SRC_DIR/third_party/ZRTP4PJ/build/zsrtp
 
-            make dep >> $arch_log 2>&1 &
+            make dep >>$arch_log 2>&1 &
             spinner $!
 
-            make >> $arch_log 2>&1 &
+            make >>$arch_log 2>&1 &
             spinner $!
         fi
     fi
@@ -605,16 +644,16 @@ function _build () {
     echo "Done building for $arch"
     echo "============================="
 
-    popd > /dev/null
+    popd >/dev/null
 
 }
 
-function _collect () {
+function _collect() {
     echo "COLLECT for $1"
     cd $BASE_DIR
     mkdir -p "pjsip/temp/$1"
 
-    for x in `find pjsip/src -name *$1*.a`; do
+    for x in $(find pjsip/src -name *$1*.a); do
         cp -v ./$x ./pjsip/temp/$1
     done | tee "$BASE_DIR"/pjsip/logs/collect.log
 
@@ -623,12 +662,12 @@ function _collect () {
     fi
 }
 
-function _merge () {
+function _merge() {
     echo "MERGE"
     cd $BASE_DIR
 
     mkdir -p "$BASE_DIR"/Pod
-    a_files=`find ./pjsip/temp -name *darwin_ios.a -exec printf '%s ' {} +`
+    a_files=$(find ./pjsip/temp -name *darwin_ios.a -exec printf '%s ' {} +)
 
     if [ $SSL_SUPPORT = true ]; then
         a_files="${a_files} ${SSL_BUILD_DIR}/lib/libssl.a ${SSL_BUILD_DIR}/lib/libcrypto.a"
@@ -645,12 +684,12 @@ function _merge () {
     libtool -o Pod/VialerPJSIP.a $a_files
 }
 
-function clean_pjsip_libs_temp () {
+function clean_pjsip_libs_temp() {
     rm -rf "$BASE_DIR/pjsip/temp/$arch"
     rm -rf "$BASE_DIR/Pod"
 }
 
-function clean_pjsip_libs () {
+function clean_pjsip_libs() {
     arch=$1
 
     echo "Clean $arch lib direcotry"
@@ -668,7 +707,7 @@ function clean_pjsip_libs () {
     done
 }
 
-function copy_headers () {
+function copy_headers() {
     echo "Copying header files to temporary location"
     cd "$BASE_DIR/pjsip/src"
 
@@ -696,11 +735,11 @@ function copy_headers () {
     echo "============================="
 }
 
-function copy_to_lib_dir () {
+function copy_to_lib_dir() {
     old_path=$1
     new_path=()
 
-    path_parts=(`echo $1 | tr '/' '\n'`)
+    path_parts=($(echo $1 | tr '/' '\n'))
     for x in "${path_parts[@]}"; do
         if [ "$x" = "include" ] || [ "${#new_path[@]}" -ne "0" ]; then
             new_path+=("$x")
@@ -769,9 +808,15 @@ function create_framework {
             echo "Error processing file ${file}"
         fi
 
-        i=$((i+1))
+        i=$((i + 1))
     done < <(find "${FRAMEWORK_LOCN}/Versions/A/Headers" -type f -name "*.h" -print0)
     # echo "$i files processed"
+
+    echo "Removing from ${FRAMEWORK_LOCN}/Versions/A/Headers/pj/compat "
+    rm -rf "${FRAMEWORK_LOCN}/Versions/A/Headers/pj/compat"
+
+    echo "Copying from ${PUBLIC_HEADERS_FOLDER_PATH}/pj/compat to ${FRAMEWORK_LOCN}/Versions/A/Headers/pj"
+    cp -rpf "${PUBLIC_HEADERS_FOLDER_PATH}/pj/compat" "${FRAMEWORK_LOCN}/Versions/A/Headers/pj"
 
     echo "Done create framework $PRODUCT_NAME"
     echo "============================="
@@ -795,7 +840,6 @@ else
     build_opus
     config_site
     build_archs
-    _merge
+    _merge 
     create_framework
 fi
-

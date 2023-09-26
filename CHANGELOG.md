@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.6](https://github.com/toandn96/Vialer-pjsip-iOS/tree/3.6) (20/02/2020)
+
+- Updated PJSIP to 2.13.1
+
 ---
 ## [3.5](https://github.com/VoIPGRID/Vialer-pjsip-iOS/tree/3.5) (20/02/2020)
 
